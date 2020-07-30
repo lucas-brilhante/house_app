@@ -5,6 +5,7 @@ const connection = require("../database/connection");
 const fs = require("fs");
 const { storage, imageFilter } = require("../config/multer");
 const path = require("path");
+const { throws } = require("assert");
 
 const uploadImages = multer({ storage, fileFilter: imageFilter }).array(
   "photos",
@@ -13,13 +14,29 @@ const uploadImages = multer({ storage, fileFilter: imageFilter }).array(
 
 module.exports = {
   // GET Houses
-  async getHouses(req, res) {
+  async getHouses(req, res, next) {
     const houses = await House.findAll({ include: HouseImages });
-    res.status(200).json(houses);
+
+    const normalizedHouses = houses.map((house) => {
+      const houseValues = house.dataValues;
+      return {
+        ...houseValues,
+        HouseImages: houseValues.HouseImages.map((houseImage) => {
+          const imagesValues = houseImage.dataValues;
+          return {
+            id: imagesValues.id,
+            imageUrl: `http://localhost:3333/house/${imagesValues.HouseId}/${imagesValues.imageName}`,
+            HouseId: imagesValues.HouseId,
+          };
+        }),
+      };
+    });
+
+    res.status(200).json(normalizedHouses);
   },
 
   // POST House
-  async postHouse(req, res) {
+  async postHouse(req, res, next) {
     uploadImages(req, res, async (err) => {
       const t = await connection.transaction();
       try {
@@ -78,17 +95,49 @@ module.exports = {
   },
 
   // GET House
-  async getHouse(req, res) {
-    res.status(200).json({ message: "delete" });
+  async getHouse(req, res, next) {
+    const { houseId } = req.params;
+    try {
+      const house = await House.findByPk(houseId);
+      if (!house) {
+        const error = new Error("User not found.");
+        error.statusCode = 404;
+        throw error;
+      }
+      res.status(200).json(house);
+    } catch (error) {
+      next(error);
+    }
   },
 
   // PUT House
-  async putHouse(req, res) {
+  async putHouse(req, res, next) {
     res.status(200).json({ message: "delete" });
   },
 
   // DELETE House
-  async deleteHouse(req, res) {
-    res.status(200).json({ message: "delete" });
+  async deleteHouse(req, res, next) {
+    const t = await connection.transaction();
+    const { houseId } = req.params;
+    try {
+      const house = await House.findByPk(houseId);
+      if (!house) {
+        const error = new Error("User not found.");
+        error.statusCode = 404;
+        throw error;
+      }
+      await house.destroy({ transaction: t });
+
+      fs.rmdir(`./uploads/house/${house.id}`, { recursive: true }, (err) => {
+        if (err) throw err;
+        console.log("Folder Deleted!");
+      });
+
+      t.commit();
+      res.status(200).json(house);
+    } catch (error) {
+      await t.rollback();
+      next(error);
+    }
   },
 };

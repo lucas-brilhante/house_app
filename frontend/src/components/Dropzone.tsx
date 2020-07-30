@@ -41,8 +41,8 @@ const Dropzone: React.FC<Props> = ({ addPhoto, photo, index, updatePhoto }) => {
 
 const Container = styled.div`
   display: flex;
-  width: 122px;
-  height: 122px;
+  width: 96px;
+  height: 96px;
   justify-content: center;
   align-items: center;
   background: blue;

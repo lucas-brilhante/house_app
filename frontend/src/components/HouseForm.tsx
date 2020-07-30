@@ -126,13 +126,14 @@ const Form = styled.form`
   min-width: 300px;
   flex-direction: column;
   justify-content: center;
-  padding: 16px;
+  padding: 8px;
 `;
 
 const Title = styled.span`
   font-size: 24px;
   text-align: center;
   padding: 16px;
+  padding-bottom: 0px;
 `;
 
 const ImagensGroup = styled.div`

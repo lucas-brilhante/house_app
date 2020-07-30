@@ -1,3 +1,4 @@
+// Spring Time
 const express = require("express");
 const connection = require("./database/connection");
 const userRouter = require("./routes/users");
@@ -15,7 +16,17 @@ app.use(express.json());
 app.use(userRouter);
 app.use(houseRouter);
 
-House.hasMany(HouseImages);
+// Error Handler
+app.use((error, req, res, next) => {
+  console.log(error);
+  const status = error.statusCode || 500;
+  const message = error.message;
+  res.status(status).json({ message });
+});
+
+House.hasMany(HouseImages, {
+  onDelete: "CASCADE",
+});
 HouseImages.belongsTo(House);
 
 const start = async () => {
