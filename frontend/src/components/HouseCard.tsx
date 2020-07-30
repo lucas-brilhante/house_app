@@ -18,14 +18,18 @@ interface House {
 
 interface Props {
   house: House;
+  ViewInfo: (houseInfo: House) => void;
 }
 
-const HouseCard: React.FC<Props> = ({ house }) => {
+const HouseCard: React.FC<Props> = ({ house, ViewInfo }) => {
+  const handleClick = () => {
+    ViewInfo(house);
+  };
   return (
-    <Container>
+    <Container onClick={handleClick}>
       <Header>
         <Thumbnail>
-          <Image src={house.HouseImages[0].imageUrl} alt="Thumb" />
+          <Image src={house?.HouseImages[0]?.imageUrl} alt="Thumb" />
         </Thumbnail>
         <TitleGroup>
           <Title>{house.address + ","}</Title>
@@ -54,12 +58,13 @@ const Container = styled.div`
   padding: 8px;
 
   &:hover {
+    padding: 7px;
     border: 1px solid black;
     cursor: pointer;
   }
 
   &:active {
-    padding: 10px;
+    opacity: 0.1;
   }
 `;
 

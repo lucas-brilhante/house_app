@@ -18,7 +18,11 @@ interface House {
   HouseImages: HouseImages[];
 }
 
-const HousesGrid = () => {
+interface Props {
+  ViewInfo: (houseInfo: House) => void;
+}
+
+const HousesGrid: React.FC<Props> = ({ ViewInfo }) => {
   const [houses, setHouses] = useState<House[]>([]);
 
   useEffect(() => {
@@ -32,7 +36,7 @@ const HousesGrid = () => {
   return (
     <Container>
       {houses.map((house) => (
-        <HouseCard house={house} />
+        <HouseCard key={house.id} ViewInfo={ViewInfo} house={house} />
       ))}
     </Container>
   );
