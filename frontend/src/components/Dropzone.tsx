@@ -5,26 +5,41 @@ import styled from "styled-components";
 interface Props {
   addPhoto: (photo: File) => void;
   updatePhoto: (photo: File, index: number) => void;
+  updateExistentPhoto?: (photo: File, index: number) => void;
   photo?: File;
   index?: number;
+  imageUrl?: string;
 }
 
-const Dropzone: React.FC<Props> = ({ addPhoto, photo, index, updatePhoto }) => {
-  const url = photo ? URL.createObjectURL(photo) : "";
-  const [file, setFile] = useState(url);
+const Dropzone: React.FC<Props> = ({
+  addPhoto,
+  photo,
+  index,
+  updatePhoto,
+  imageUrl,
+  updateExistentPhoto,
+}) => {
+  const path = photo ? URL.createObjectURL(photo) : "";
+  const [file, setFile] = useState(path);
 
   const onDrop = useCallback(
     (acceptedFiles) => {
-      if (photo === undefined) {
+      if (!photo && !imageUrl) {
         addPhoto(acceptedFiles);
+        return;
+      }
+
+      const i = index ? index : 0;
+      const fileurl = URL.createObjectURL(acceptedFiles[0]);
+      setFile(fileurl);
+
+      if (imageUrl) {
+        if (updateExistentPhoto) updateExistentPhoto(acceptedFiles[0], i);
       } else {
-        const i = index ? index : 0;
-        const fileurl = URL.createObjectURL(acceptedFiles[0]);
-        setFile(fileurl);
         updatePhoto(acceptedFiles[0], i);
       }
     },
-    [addPhoto, updatePhoto, photo, index]
+    [addPhoto, updatePhoto, photo, index, imageUrl, updateExistentPhoto]
   );
   const { getRootProps, getInputProps } = useDropzone({
     onDrop,
@@ -34,7 +49,9 @@ const Dropzone: React.FC<Props> = ({ addPhoto, photo, index, updatePhoto }) => {
   return (
     <Container {...getRootProps()}>
       <input {...getInputProps()} />
-      {file ? <Image src={file} alt=" " /> : <p>+</p>}
+      {file && <Image src={file} alt=" " />}
+      {imageUrl && !file && <Image src={imageUrl} alt=" " />}
+      {!file && !imageUrl && <p>+</p>}
     </Container>
   );
 };

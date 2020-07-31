@@ -4,11 +4,22 @@ import Dropzone from "./Dropzone";
 import api from "../service/api";
 
 // Reducer
+
+interface photoStatus {
+  id: number;
+  imageUrl: string;
+  HouseId: number;
+  status: string;
+}
+
 type FormState = {
   address: string;
   number: string;
-  photos?: File[];
+  newPhotos: File[];
   isEditing: boolean;
+
+  photosStatus?: photoStatus[];
+  photos?: File[];
 };
 
 type SetFieldAction = {
@@ -23,7 +34,7 @@ type AddPhotosAction = {
 
 type UpdatePhotosAction = {
   type: "UPDATE_PHOTO";
-  payload: { photo: File; index: number };
+  payload: { newPhotos: File; index: number };
 };
 
 type SetIsEditing = {
@@ -31,11 +42,21 @@ type SetIsEditing = {
   payload: FormState;
 };
 
+type SetExistentPhotoStatus = {
+  type: "SET_PHOTO_STATUS";
+  payload: {
+    status: string;
+    index: number;
+    photo: File;
+  };
+};
+
 type Action =
   | SetFieldAction
   | AddPhotosAction
   | UpdatePhotosAction
-  | SetIsEditing;
+  | SetIsEditing
+  | SetExistentPhotoStatus;
 
 interface HouseImages {
   id: number;
@@ -55,7 +76,7 @@ interface House {
 const initialState = {
   address: "",
   number: "",
-  photos: [],
+  newPhotos: [],
   isEditing: false,
 };
 
@@ -66,13 +87,22 @@ const formReducer = (state: FormState, action: Action): FormState => {
       const value = action.payload.value;
       return { ...state, [fieldName]: value };
     case "ADD_PHOTO":
-      return { ...state, photos: state.photos?.concat(action.payload) };
+      return { ...state, newPhotos: state.newPhotos.concat(action.payload) };
     case "UPDATE_PHOTO":
-      let photos: any = state.photos?.slice();
-      photos[action.payload.index] = action.payload.photo;
-      return { ...state, photos };
+      let newPhotos = state.newPhotos.slice();
+      newPhotos[action.payload.index] = action.payload.newPhotos;
+      return { ...state, newPhotos };
     case "SET_ISEDIT":
       return { ...action.payload };
+    case "SET_PHOTO_STATUS":
+      let photosStatus = state.photosStatus;
+      let photos = state.photos;
+      if (photosStatus)
+        photosStatus[action.payload.index].status = action.payload.status;
+      if (photos) {
+        photos[action.payload.index] = action.payload.photo;
+      }
+      return { ...state, photosStatus, photos };
     default:
       return state;
   }
@@ -95,17 +125,28 @@ const HouseForm: React.FC<Props> = ({ closeForm, formInfo }) => {
     });
   }, []);
 
-  const addPhoto = useCallback((photo: File) => {
+  const addNewPhoto = useCallback((photo: File) => {
     dispatch({
       type: "ADD_PHOTO",
       payload: photo,
     });
   }, []);
 
-  const updatePhoto = useCallback((photo: File, index: number) => {
+  const updateNewPhoto = useCallback((newPhotos: File, index: number) => {
     dispatch({
       type: "UPDATE_PHOTO",
-      payload: { photo, index },
+      payload: { newPhotos, index },
+    });
+  }, []);
+
+  const updateExistentPhoto = useCallback((photo: File, index: number) => {
+    dispatch({
+      type: "SET_PHOTO_STATUS",
+      payload: {
+        index,
+        photo,
+        status: "CHANGED",
+      },
     });
   }, []);
 
@@ -115,18 +156,14 @@ const HouseForm: React.FC<Props> = ({ closeForm, formInfo }) => {
       address: formInfo.address,
       number: formInfo.number,
       isEditing: true,
+      newPhotos: [],
+      photos: [],
+      photosStatus: formInfo.HouseImages.map((photos) => ({
+        ...photos,
+        status: "UNCHANGED",
+      })),
     };
-    dispatch({ type: "SET_ISEDIT", payload: { ...newFormFields } });
-  };
-
-  const editHouse = async () => {
-    console.log("HOUSE EDITED");
-  };
-
-  const deleteHouse = async () => {
-    const response = await api.delete(`houses/${formInfo?.id}`);
-    closeForm();
-    console.log("HOUSE DELETED", response);
+    dispatch({ type: "SET_ISEDIT", payload: newFormFields });
   };
 
   const addHouse = useCallback(
@@ -136,14 +173,69 @@ const HouseForm: React.FC<Props> = ({ closeForm, formInfo }) => {
       const formData = new FormData();
       formData.append("address", form.address);
       formData.append("number", form.number);
-      form.photos?.forEach((photo) => {
-        formData.append("photos", photo);
+      form.newPhotos.forEach((photo) => {
+        formData.append("newPhotos", photo);
       });
       await api.post("/houses", formData);
       closeForm();
     },
     [form, closeForm]
   );
+
+  const editHouse = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+
+      const updatedHouse = {
+        id: formInfo?.id,
+        address: form.address,
+        number: form.number,
+        photosStatus: form.photosStatus?.map((photo) => ({
+          id: photo.id,
+          imageUrl: photo.imageUrl,
+          HouseId: photo.HouseId,
+          status: photo.status,
+        })),
+      };
+
+      console.log("PORRA", updatedHouse.photosStatus);
+      console.log("GG", form.photos);
+      console.log("ARG", form.newPhotos);
+
+      const parsedUpdatedHouse = JSON.stringify(updatedHouse);
+
+      const formData = new FormData();
+
+      formData.append("data", parsedUpdatedHouse);
+
+      form.newPhotos.forEach((newPhoto) => {
+        formData.append("newPhotos", newPhoto);
+      });
+
+      form.photos?.forEach((photo) => {
+        formData.append("photos", photo);
+      });
+
+      await api.put(`houses/${formInfo?.id}`, formData);
+      closeForm();
+      console.log("HOUSE EDITED");
+    },
+    [
+      closeForm,
+      form.address,
+      form.newPhotos,
+      form.number,
+      form.photosStatus,
+      form.photos,
+      formInfo,
+    ]
+  );
+
+  const deleteHouse = async () => {
+    const response = await api.delete(`houses/${formInfo?.id}`);
+    closeForm();
+    console.log("HOUSE DELETED", response);
+  };
 
   // JSX
   if (!formInfo)
@@ -152,15 +244,16 @@ const HouseForm: React.FC<Props> = ({ closeForm, formInfo }) => {
       <Form onSubmit={addHouse}>
         <Title>Cadastro de Casa</Title>
         <ImagensGroup>
-          {form.photos?.map((photo, i) => (
+          {form.newPhotos.map((photo, i) => (
             <Dropzone
               key={i}
               photo={photo}
-              addPhoto={addPhoto}
-              updatePhoto={updatePhoto}
+              addPhoto={addNewPhoto}
+              updatePhoto={updateNewPhoto}
+              index={i}
             />
           ))}
-          <Dropzone addPhoto={addPhoto} updatePhoto={updatePhoto} />
+          <Dropzone addPhoto={addNewPhoto} updatePhoto={updateNewPhoto} />
         </ImagensGroup>
         <Label>Endereço</Label>
         <Input name="address" value={form.address} onChange={onChange} />
@@ -173,20 +266,33 @@ const HouseForm: React.FC<Props> = ({ closeForm, formInfo }) => {
         <Button type="submit">Cadastrar</Button>
       </Form>
     );
+  // EDIT HOUSE
   if (form.isEditing)
     return (
       <Form onSubmit={editHouse}>
-        <Title>Cadastro de Casa</Title>
+        <Title>Editar Casa</Title>
         <ImagensGroup>
-          {form.photos?.map((photo, i) => (
+          {form.photosStatus &&
+            form.photosStatus.map((image, i) => (
+              <Dropzone
+                key={image.id}
+                imageUrl={image.imageUrl}
+                addPhoto={addNewPhoto}
+                updatePhoto={updateNewPhoto}
+                updateExistentPhoto={updateExistentPhoto}
+                index={i}
+              />
+            ))}
+          {form.newPhotos.map((photo, i) => (
             <Dropzone
               key={i}
               photo={photo}
-              addPhoto={addPhoto}
-              updatePhoto={updatePhoto}
+              addPhoto={addNewPhoto}
+              updatePhoto={updateNewPhoto}
+              index={i}
             />
           ))}
-          <Dropzone addPhoto={addPhoto} updatePhoto={updatePhoto} />
+          <Dropzone addPhoto={addNewPhoto} updatePhoto={updateNewPhoto} />
         </ImagensGroup>
         <Label>Endereço</Label>
         <Input name="address" value={form.address} onChange={onChange} />
@@ -258,6 +364,7 @@ const ImagensGroup = styled.div`
   display: -webkit-box;
   overflow-x: auto;
   overflow-y: auto;
+  width: 100%;
 `;
 
 const Label = styled.label`
@@ -287,7 +394,7 @@ const TextInfo = styled.span`
 const Images = styled.div`
   width: 96px;
   height: 96px;
-  padding: 4px;
+  margin: 8px;
 `;
 
 const Image = styled.img`
