@@ -51,12 +51,24 @@ type SetExistentPhotoStatus = {
   };
 };
 
+type DeleteNewPhoto = {
+  type: "DELETE_NEW_PHOTO";
+  payload: number;
+};
+
+type DeletePhoto = {
+  type: "DELETE_PHOTO";
+  payload: number;
+};
+
 type Action =
   | SetFieldAction
   | AddPhotosAction
   | UpdatePhotosAction
   | SetIsEditing
-  | SetExistentPhotoStatus;
+  | SetExistentPhotoStatus
+  | DeleteNewPhoto
+  | DeletePhoto;
 
 interface HouseImages {
   id: number;
@@ -82,27 +94,41 @@ const initialState = {
 
 const formReducer = (state: FormState, action: Action): FormState => {
   switch (action.type) {
-    case "SET_FIELD":
+    case "SET_FIELD": {
       const fieldName = action.payload.fieldName;
       const value = action.payload.value;
       return { ...state, [fieldName]: value };
+    }
     case "ADD_PHOTO":
       return { ...state, newPhotos: state.newPhotos.concat(action.payload) };
-    case "UPDATE_PHOTO":
+    case "UPDATE_PHOTO": {
       let newPhotos = state.newPhotos.slice();
       newPhotos[action.payload.index] = action.payload.newPhotos;
       return { ...state, newPhotos };
+    }
     case "SET_ISEDIT":
       return { ...action.payload };
-    case "SET_PHOTO_STATUS":
-      let photosStatus = state.photosStatus;
-      let photos = state.photos;
+    case "SET_PHOTO_STATUS": {
+      let photosStatus = state.photosStatus?.slice();
+      let photos = state.photos?.slice();
       if (photosStatus)
         photosStatus[action.payload.index].status = action.payload.status;
       if (photos) {
         photos[action.payload.index] = action.payload.photo;
       }
       return { ...state, photosStatus, photos };
+    }
+    case "DELETE_NEW_PHOTO": {
+      let newPhotos = state.newPhotos.filter(
+        (_, index) => index !== action.payload
+      );
+      return { ...state, newPhotos };
+    }
+    case "DELETE_PHOTO": {
+      let photosStatus = state.photosStatus?.slice();
+      if (photosStatus) photosStatus[action.payload].status = "DELETED";
+      return { ...state, photosStatus };
+    }
     default:
       return state;
   }
@@ -148,6 +174,14 @@ const HouseForm: React.FC<Props> = ({ closeForm, formInfo }) => {
         status: "CHANGED",
       },
     });
+  }, []);
+
+  const deleteNewPhoto = useCallback((index: number) => {
+    dispatch({ type: "DELETE_NEW_PHOTO", payload: index });
+  }, []);
+
+  const deletePhoto = useCallback((index: number) => {
+    dispatch({ type: "DELETE_PHOTO", payload: index });
   }, []);
 
   const handleEditMode = () => {
@@ -198,10 +232,6 @@ const HouseForm: React.FC<Props> = ({ closeForm, formInfo }) => {
         })),
       };
 
-      console.log("PORRA", updatedHouse.photosStatus);
-      console.log("GG", form.photos);
-      console.log("ARG", form.newPhotos);
-
       const parsedUpdatedHouse = JSON.stringify(updatedHouse);
 
       const formData = new FormData();
@@ -244,16 +274,19 @@ const HouseForm: React.FC<Props> = ({ closeForm, formInfo }) => {
       <Form onSubmit={addHouse}>
         <Title>Cadastro de Casa</Title>
         <ImagensGroup>
-          {form.newPhotos.map((photo, i) => (
-            <Dropzone
-              key={i}
-              photo={photo}
-              addPhoto={addNewPhoto}
-              updatePhoto={updateNewPhoto}
-              index={i}
-            />
-          ))}
-          <Dropzone addPhoto={addNewPhoto} updatePhoto={updateNewPhoto} />
+          {form.newPhotos.map((photo, i) => {
+            const path = URL.createObjectURL(photo);
+            return (
+              <Dropzone
+                key={path}
+                photo={path}
+                updatePhoto={updateNewPhoto}
+                deleteNewPhoto={deleteNewPhoto}
+                index={i}
+              />
+            );
+          })}
+          <Dropzone addPhoto={addNewPhoto} />
         </ImagensGroup>
         <Label>Endereço</Label>
         <Input name="address" value={form.address} onChange={onChange} />
@@ -273,26 +306,38 @@ const HouseForm: React.FC<Props> = ({ closeForm, formInfo }) => {
         <Title>Editar Casa</Title>
         <ImagensGroup>
           {form.photosStatus &&
-            form.photosStatus.map((image, i) => (
+            form.photosStatus.map((image, i) => {
+              if (image.status !== "DELETED") {
+                let photo = null;
+
+                if (form.photos) photo = form.photos[i];
+
+                const path = photo ? URL.createObjectURL(photo) : undefined;
+                return (
+                  <Dropzone
+                    key={image.id}
+                    photo={path}
+                    imageUrl={image.imageUrl}
+                    updateExistentPhoto={updateExistentPhoto}
+                    deletePhoto={deletePhoto}
+                    index={i}
+                  />
+                );
+              } else return null;
+            })}
+          {form.newPhotos.map((photo, i) => {
+            const path = URL.createObjectURL(photo);
+            return (
               <Dropzone
-                key={image.id}
-                imageUrl={image.imageUrl}
-                addPhoto={addNewPhoto}
+                key={path}
+                photo={path}
                 updatePhoto={updateNewPhoto}
-                updateExistentPhoto={updateExistentPhoto}
+                deleteNewPhoto={deleteNewPhoto}
                 index={i}
               />
-            ))}
-          {form.newPhotos.map((photo, i) => (
-            <Dropzone
-              key={i}
-              photo={photo}
-              addPhoto={addNewPhoto}
-              updatePhoto={updateNewPhoto}
-              index={i}
-            />
-          ))}
-          <Dropzone addPhoto={addNewPhoto} updatePhoto={updateNewPhoto} />
+            );
+          })}
+          <Dropzone addPhoto={addNewPhoto} />
         </ImagensGroup>
         <Label>Endereço</Label>
         <Input name="address" value={form.address} onChange={onChange} />

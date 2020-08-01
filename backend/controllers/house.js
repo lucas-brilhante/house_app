@@ -143,10 +143,15 @@ module.exports = {
 
         await house.update(updatedHouse, { transaction: t });
 
-        if (req.files.photos) {
-          let count = 0;
-          for (const photo of data.photosStatus) {
-            if (photo.status !== "CHANGED") continue;
+        let count = 0;
+        for (const photo of data.photosStatus) {
+          if (photo.status === "DELETED") {
+            const arg = await HouseImages.destroy({
+              where: { id: photo.id },
+              transaction: t,
+            });
+            console.log("ARG", arg);
+          } else if (photo.status === "CHANGED") {
             const file = req.files.photos[count];
             count++;
             const actualImage = await HouseImages.findByPk(photo.id);
@@ -192,6 +197,17 @@ module.exports = {
               });
             });
           }
+
+        for (const photo of data.photosStatus) {
+          if (photo.status === "DELETED") {
+            const actualImage = await HouseImages.findByPk(photo.id);
+            const name = actualImage.imageName;
+            const path = `./uploads/house/${houseId}/${name}`;
+            fs.unlink(path, (err) => {
+              if (err) console.log(err);
+            });
+          }
+        }
 
         for (const imageName of actualImagesNames) {
           const path = `./uploads/house/${houseId}/${imageName}`;
