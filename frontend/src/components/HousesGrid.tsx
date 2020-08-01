@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import styled from "styled-components";
 import HouseCard from "./HouseCard";
 import api from "../service/api";
+import socketIO from "socket.io-client";
 
 interface HouseImages {
   id: number;
@@ -24,6 +25,18 @@ interface Props {
 
 const HousesGrid: React.FC<Props> = ({ ViewInfo }) => {
   const [houses, setHouses] = useState<House[]>([]);
+
+  useEffect(() => {
+    const socket = socketIO("http://localhost:3333");
+    socket.on("houses", (data: House[]) => {
+      console.log("CASAS", data);
+      setHouses(data);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
 
   useEffect(() => {
     const fetchHouses = async () => {

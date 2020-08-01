@@ -7,40 +7,49 @@ const { storage, imageFilter } = require("../config/multer");
 const path = require("path");
 const { ECANCELED } = require("constants");
 const { model } = require("../database/connection");
+const { getIo } = require("../socket");
 
 const uploadImages = multer({ storage, fileFilter: imageFilter }).fields([
   { name: "photos", maxCount: 50 },
   { name: "newPhotos", maxCount: 50 },
 ]);
 
+const normalizeHouse = (house) => {
+  const houseValues = house.dataValues;
+  return {
+    ...houseValues,
+    HouseImages: houseValues.HouseImages.map((houseImage) => {
+      const imagesValues = houseImage.dataValues;
+      return {
+        id: imagesValues.id,
+        imageUrl: `http://localhost:3333/house/${imagesValues.HouseId}/${imagesValues.imageName}`,
+        HouseId: imagesValues.HouseId,
+      };
+    }),
+  };
+};
+
+const getAllHouses = async () => {
+  const houses = await House.findAll({
+    include: HouseImages,
+    order: [[HouseImages, "id", "ASC"]],
+  });
+
+  const normalizedHouses = houses.map((house) => normalizeHouse(house));
+
+  return normalizedHouses;
+};
+
 module.exports = {
   // GET Houses
   async getHouses(req, res, next) {
-    const houses = await House.findAll({
-      include: HouseImages,
-      order: [[HouseImages, "id", "ASC"]],
-    });
-
-    const normalizedHouses = houses.map((house) => {
-      const houseValues = house.dataValues;
-      return {
-        ...houseValues,
-        HouseImages: houseValues.HouseImages.map((houseImage) => {
-          const imagesValues = houseImage.dataValues;
-          return {
-            id: imagesValues.id,
-            imageUrl: `http://localhost:3333/house/${imagesValues.HouseId}/${imagesValues.imageName}`,
-            HouseId: imagesValues.HouseId,
-          };
-        }),
-      };
-    });
-
-    res.status(200).json(normalizedHouses);
+    const houses = await getAllHouses();
+    res.status(200).json(houses);
   },
 
   // POST House
   async postHouse(req, res, next) {
+    const io = getIo();
     uploadImages(req, res, async (err) => {
       const t = await connection.transaction();
       try {
@@ -85,6 +94,9 @@ module.exports = {
           include: HouseImages,
         });
 
+        const updatedHouses = await getAllHouses();
+        io.emit("houses", updatedHouses);
+
         res.status(201).json(response);
       } catch (error) {
         for (const photo of req.files.newPhotos) {
@@ -118,6 +130,7 @@ module.exports = {
   // PUT House
   async putHouse(req, res, next) {
     uploadImages(req, res, async (err) => {
+      const io = getIo();
       if (err) return res.json({ ...err });
       const t = await connection.transaction();
       const { houseId } = req.params;
@@ -223,6 +236,9 @@ module.exports = {
           include: HouseImages,
         });
 
+        const updatedHouses = await getAllHouses();
+        io.emit("houses", updatedHouses);
+
         res.status(200).json(response);
       } catch (error) {
         for (const photo of req.files.newPhotos) {
@@ -248,6 +264,7 @@ module.exports = {
 
   // DELETE House
   async deleteHouse(req, res, next) {
+    const io = getIo();
     const t = await connection.transaction();
     const { houseId } = req.params;
     try {
@@ -265,6 +282,10 @@ module.exports = {
       });
 
       await t.commit();
+
+      const updatedHouses = await getAllHouses();
+      io.emit("houses", updatedHouses);
+
       res.status(200).json(house);
     } catch (error) {
       await t.rollback();
