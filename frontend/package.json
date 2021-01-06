@@ -13,7 +13,7 @@
     "@types/socket.io-client": "^1.4.33",
     "@types/styled-components": "^5.1.1",
     "add": "^2.0.6",
-    "axios": "^0.19.2",
+    "axios": "^0.21.1",
     "react": "^16.13.1",
     "react-dom": "^16.13.1",
     "react-dropzone": "^11.0.2",
